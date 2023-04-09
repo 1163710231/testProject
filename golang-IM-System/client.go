@@ -3,7 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"net"
+	"os"
 )
 
 type Client struct {
@@ -55,6 +57,14 @@ func (this *Client) showMenu() bool {
 	}
 }
 
+func (this *Client) ReceiveMessageFromServer() {
+	_, ioCopyError := io.Copy(os.Stdout, this.Connection) // 一旦 this.Connection 中有输出，就直接 copy 到标准输出上，且永久阻塞监听
+	if ioCopyError != nil {
+		fmt.Println("io.Copy error:", ioCopyError)
+		return
+	}
+}
+
 func (this *Client) Run() {
 	for this.Flag != 0 {
 		for this.showMenu() == false {
@@ -73,12 +83,29 @@ func (this *Client) Run() {
 			fmt.Println("私聊模式")
 			break
 		case 3: // 更新用户名
-			fmt.Println("更新用户名")
+			this.UpdateName()
 			break
 		default: // 错误
 			fmt.Println("Model error!")
 		}
 	}
+}
+
+func (this *Client) UpdateName() bool {
+	fmt.Println("Please input new user name")
+	_, ScanError := fmt.Scanln(&this.Name)
+	if ScanError != nil {
+		fmt.Println("Scan error:", ScanError)
+		return false
+	}
+
+	renameMessage := "rename|" + this.Name + "\n"
+	_, connectionWriteError := this.Connection.Write([]byte(renameMessage))
+	if connectionWriteError != nil {
+		fmt.Println("Connection.Write error:", connectionWriteError)
+		return false
+	}
+	return true
 }
 
 var serverIP string
@@ -99,6 +126,9 @@ func main() {
 		fmt.Println("Failed to connect server!")
 		return
 	}
+
+	go client.ReceiveMessageFromServer()
+
 	fmt.Println("Successfully connected to the server!")
 
 	// 启动客户端的业务
