@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net"
+	"strings"
 )
 
 type User struct {
@@ -72,6 +73,21 @@ func (this *User) HandleMessage(message string) {
 			this.ShowMessage(onlineCountMessage)
 		}
 		this.ConnectedServers.mapLock.Unlock()
+	} else if len(message) > 7 && message[:7] == "rename|" {
+		newName := strings.Split(message, "|")[1]
+		_, ok := this.ConnectedServers.OnlineUserMap[newName]
+		if ok { // 用户名已经存在
+			this.ShowMessage("User name [" + newName + "] already exist\n")
+		} else {
+			this.ConnectedServers.mapLock.Lock()
+			delete(this.ConnectedServers.OnlineUserMap, this.Name)
+			this.ConnectedServers.OnlineUserMap[newName] = this
+			this.ConnectedServers.mapLock.Unlock()
+
+			this.Name = newName
+
+			this.ShowMessage("User name updated: " + newName + "\n")
+		}
 	} else {
 		this.ConnectedServers.Broadcast(this, message)
 	}
