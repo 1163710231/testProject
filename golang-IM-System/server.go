@@ -63,20 +63,15 @@ func (this *Server) Start() {
 func (this *Server) Handler(connection net.Conn) {
 	// 用户上线
 	// 1.创建新上线的用户
-	user := NewUser(connection)
+	user := NewUser(connection, this)
 
-	// 2.将用户加入到在线用户表中
-	this.mapLock.Lock()
-	this.OnlineUserMap[user.Name] = user
-	this.mapLock.Unlock()
+	// 2.将用户加入到在线用户表中，并广播当前用户上线的消息
+	user.Online()
 
-	// 3.广播当前用户上线的消息
-	this.Broadcast(user, "is online now!")
-
-	// 4.监听 User 发送的消息
+	// 3.监听 User 发送的消息
 	go this.UserMessageListener(connection, user)
 
-	// 5.阻塞当前 Handler
+	// 4.阻塞当前 Handler
 	select {}
 }
 
@@ -109,11 +104,12 @@ func (this *Server) UserMessageListener(connection net.Conn, user *User) {
 			return
 		}
 		if n == 0 {
-			this.Broadcast(user, "is outline now!")
+			user.Offline()
 			return
 		}
 
 		message := string(buffer[:n-1]) // 提取用户的消息，并去除结尾的'\n'
-		this.Broadcast(user, message)   // 将得到的消息进行广播
+
+		user.HandleMessage(message) // 用户对 message 进行处理
 	}
 }
