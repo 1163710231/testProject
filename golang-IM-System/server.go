@@ -3,18 +3,25 @@ package main
 import (
 	"fmt"
 	"net"
+	"sync"
 )
 
 type Server struct {
 	IP   string
 	Port int
+
+	OnlineUserMap  map[string]*User // 在线用户表
+	mapLock        sync.RWMutex     // 用于在线用户表的读写锁
+	MessageChannel chan string      // 用于消息广播的 Channel
 }
 
 // NewServer 创建一个 server 的接口
 func NewServer(ip string, port int) *Server {
 	server := Server{
-		IP:   ip,
-		Port: port,
+		IP:             ip,
+		Port:           port,
+		OnlineUserMap:  make(map[string]*User),
+		MessageChannel: make(chan string),
 	}
 	return &server
 }
@@ -36,6 +43,9 @@ func (this *Server) Start() {
 		}
 	}(listener)
 
+	// run MessageListener goroutine
+	go this.MessageListener()
+
 	for {
 		// accept
 		connection, connectionError := listener.Accept()
@@ -50,6 +60,37 @@ func (this *Server) Start() {
 }
 
 func (this *Server) Handler(connection net.Conn) {
-	// 当前连接的业务
-	fmt.Println("执行当前连接的业务")
+	// 用户上线
+	// 1.创建新上线的用户
+	user := NewUser(connection)
+
+	// 2.将用户加入到在线用户表中
+	this.mapLock.Lock()
+	this.OnlineUserMap[user.Name] = user
+	this.mapLock.Unlock()
+
+	// 3.广播当前用户上线的消息
+	this.Broadcast(user, "is online now!")
+
+	// 4.阻塞当前 Handler
+	select {}
+}
+
+// Broadcast 广播当前用户上线的消息的方法
+func (this *Server) Broadcast(user *User, message string) {
+	broadcastMessage := "[" + user.Address + "]" + user.Name + ": " + message
+	this.MessageChannel <- broadcastMessage
+}
+
+// MessageListener 监听 MessageChannel 的 goroutine，一旦有消息就马上发送给所有在线的 User
+func (this *Server) MessageListener() {
+	for {
+		message := <-this.MessageChannel
+
+		this.mapLock.Lock()
+		for _, onlineUser := range this.OnlineUserMap {
+			onlineUser.Channel <- message
+		}
+		this.mapLock.Unlock()
+	}
 }
