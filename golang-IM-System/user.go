@@ -32,16 +32,12 @@ func NewUser(connection net.Conn, connectedServers *Server) *User {
 	return &user
 }
 
-// ListenMessage 监听当前 User 的 Channel 的 goroutine，一旦有消息就直接发送给对端客户端
+// ListenMessage 监听当前 User 的 Channel 的 goroutine，一旦有消息就直接进行发送给本 User，以供其显示
 func (this *User) ListenMessage() {
 	for {
 		message := <-this.Channel
 
-		_, err := this.Connection.Write([]byte(message + "\n"))
-		if err != nil {
-			fmt.Println("this.Connection.Write error:", err)
-			return
-		}
+		this.ShowMessage(message)
 	}
 }
 
@@ -69,5 +65,23 @@ func (this *User) Offline() {
 
 // HandleMessage 用户的处理消息功能
 func (this *User) HandleMessage(message string) {
-	this.ConnectedServers.Broadcast(this, message)
+	if message == "who" { // 查询当前所有的在线用户
+		this.ConnectedServers.mapLock.Lock()
+		for _, user := range this.ConnectedServers.OnlineUserMap {
+			onlineCountMessage := "[" + user.Address + "]" + user.Name + ": is online now..."
+			this.ShowMessage(onlineCountMessage)
+		}
+		this.ConnectedServers.mapLock.Unlock()
+	} else {
+		this.ConnectedServers.Broadcast(this, message)
+	}
+}
+
+// ShowMessage 将消息发送给本用户，从而在其界面显示消息
+func (this *User) ShowMessage(message string) {
+	_, err := this.Connection.Write([]byte(message + "\n"))
+	if err != nil {
+		fmt.Println("this.Connection.Write error:", err)
+		return
+	}
 }
