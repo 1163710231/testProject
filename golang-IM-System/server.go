@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"sync"
 )
@@ -72,7 +73,10 @@ func (this *Server) Handler(connection net.Conn) {
 	// 3.广播当前用户上线的消息
 	this.Broadcast(user, "is online now!")
 
-	// 4.阻塞当前 Handler
+	// 4.监听 User 发送的消息
+	go this.UserMessageListener(connection, user)
+
+	// 5.阻塞当前 Handler
 	select {}
 }
 
@@ -92,5 +96,24 @@ func (this *Server) MessageListener() {
 			onlineUser.Channel <- message
 		}
 		this.mapLock.Unlock()
+	}
+}
+
+// UserMessageListener 监听 User 发送的消息
+func (this *Server) UserMessageListener(connection net.Conn, user *User) {
+	buffer := make([]byte, 4096)
+	for {
+		n, readError := connection.Read(buffer)
+		if readError != nil && readError != io.EOF {
+			fmt.Println("Connection.Read error:", readError)
+			return
+		}
+		if n == 0 {
+			this.Broadcast(user, "is outline now!")
+			return
+		}
+
+		message := string(buffer[:n-1]) // 提取用户的消息，并去除结尾的'\n'
+		this.Broadcast(user, message)   // 将得到的消息进行广播
 	}
 }
