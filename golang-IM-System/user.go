@@ -73,7 +73,7 @@ func (this *User) HandleMessage(message string) {
 			this.ShowMessage(onlineCountMessage)
 		}
 		this.ConnectedServers.mapLock.Unlock()
-	} else if len(message) > 7 && message[:7] == "rename|" {
+	} else if len(message) > 7 && message[:7] == "rename|" { // 消息格式：rename|[user name]
 		newName := strings.Split(message, "|")[1]
 		_, ok := this.ConnectedServers.OnlineUserMap[newName]
 		if ok { // 用户名已经存在
@@ -88,6 +88,26 @@ func (this *User) HandleMessage(message string) {
 
 			this.ShowMessage("User name updated: " + newName + "\n")
 		}
+	} else if len(message) > 4 && message[:3] == "to|" { // 消息格式：to|[user name]|[message]
+		// 1.获取接收方的用户名
+		receiverName := strings.Split(message, "|")[1]
+		if receiverName == "" { // 输入错误处理
+			this.ShowMessage("Input error! Please use pattern: to|[user name]|[message]\n")
+			return
+		}
+		// 2.根据接收方的用户名，获取 User 对象
+		receiver, ok := this.ConnectedServers.OnlineUserMap[receiverName]
+		if !ok { // 接收方不存在
+			this.ShowMessage("Receiver not exist!\n")
+			return
+		}
+		// 3.获取消息内容，并将其发送给接收方
+		messageToReceiver := strings.Split(message, "|")[2]
+		if messageToReceiver == "" { // 空消息不能发送
+			this.ShowMessage("Can not send empty message!\n")
+			return
+		}
+		receiver.ShowMessage("Message from [" + this.Name + "]: " + messageToReceiver + "\n")
 	} else {
 		this.ConnectedServers.Broadcast(this, message)
 	}
