@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 )
 
 type Server struct {
@@ -61,6 +62,8 @@ func (this *Server) Start() {
 }
 
 func (this *Server) Handler(connection net.Conn) {
+	isLive := make(chan bool) //监测当前负责的 User 是否仍然活跃
+
 	// 用户上线
 	// 1.创建新上线的用户
 	user := NewUser(connection, this)
@@ -69,10 +72,24 @@ func (this *Server) Handler(connection net.Conn) {
 	user.Online()
 
 	// 3.监听 User 发送的消息
-	go this.UserMessageListener(connection, user)
+	go this.UserMessageListener(connection, user, &isLive)
 
 	// 4.阻塞当前 Handler
-	select {}
+	for {
+		select {
+		case <-isLive:
+			// 当前负责的 User 仍然处于活跃状态，此时该条 case 触发，select 退出，进入下一次 for 循环，使得计时器被重置
+		case <-time.After(time.Second * 20):
+			// 已经超时，将当前负责的 User 强制关闭
+			user.ShowMessage("Time out! offline!")
+			close(user.Channel)                        // 销毁资源
+			closeConnectionError := connection.Close() // 关闭连接
+			if closeConnectionError != nil {
+				fmt.Println("connection.Close error:", closeConnectionError)
+			}
+			return // 退出当前的 Handler
+		}
+	}
 }
 
 // Broadcast 广播当前用户上线的消息的方法
@@ -95,7 +112,7 @@ func (this *Server) MessageListener() {
 }
 
 // UserMessageListener 监听 User 发送的消息
-func (this *Server) UserMessageListener(connection net.Conn, user *User) {
+func (this *Server) UserMessageListener(connection net.Conn, user *User, isLive *chan bool) {
 	buffer := make([]byte, 4096)
 	for {
 		n, readError := connection.Read(buffer)
@@ -111,5 +128,7 @@ func (this *Server) UserMessageListener(connection net.Conn, user *User) {
 		message := string(buffer[:n-1]) // 提取用户的消息，并去除结尾的'\n'
 
 		user.HandleMessage(message) // 用户对 message 进行处理
+
+		*isLive <- true // 更新 User 的活跃状态
 	}
 }
