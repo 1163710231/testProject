@@ -77,7 +77,7 @@ func (this *Client) Run() {
 			fmt.Println("退出")
 			break
 		case 1: // 公聊模式
-			fmt.Println("公聊模式")
+			this.PublicChat()
 			break
 		case 2: // 私聊模式
 			fmt.Println("私聊模式")
@@ -87,6 +87,36 @@ func (this *Client) Run() {
 			break
 		default: // 错误
 			fmt.Println("Model error!")
+		}
+	}
+}
+
+func (this *Client) PublicChat() {
+	// 提示用户输入消息
+	fmt.Println("Please input message (Input \"exit\" to exit):")
+	var message string
+	_, scanError := fmt.Scanln(&message)
+	if scanError != nil {
+		fmt.Println("Scan error:", scanError)
+		return
+	}
+
+	// 将消息发送给服务器
+	for message != "exit" {
+		if len(message) != 0 {
+			_, connectionWriteError := this.Connection.Write([]byte(message + "\n"))
+			if connectionWriteError != nil {
+				fmt.Println("Connection.Write error:", connectionWriteError)
+				break
+			}
+		}
+
+		message = ""
+		fmt.Println("Please input message (Input \"exit\" to exit):")
+		_, scanError := fmt.Scanln(&message)
+		if scanError != nil {
+			fmt.Println("Scan error:", scanError)
+			return
 		}
 	}
 }
