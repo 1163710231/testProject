@@ -36,7 +36,7 @@ func NewClient(serverIP string, serverPort int) *Client {
 	return &client
 }
 
-func (this *Client) showMenu() bool {
+func (this *Client) ShowMenu() bool {
 	fmt.Println("0.退出")
 	fmt.Println("1.公聊模式")
 	fmt.Println("2.私聊模式")
@@ -67,7 +67,7 @@ func (this *Client) ReceiveMessageFromServer() {
 
 func (this *Client) Run() {
 	for this.Flag != 0 {
-		for this.showMenu() == false {
+		for this.ShowMenu() == false {
 
 		}
 
@@ -80,7 +80,7 @@ func (this *Client) Run() {
 			this.PublicChat()
 			break
 		case 2: // 私聊模式
-			fmt.Println("私聊模式")
+			this.PrivateChat()
 			break
 		case 3: // 更新用户名
 			this.UpdateName()
@@ -116,6 +116,60 @@ func (this *Client) PublicChat() {
 		_, scanError := fmt.Scanln(&message)
 		if scanError != nil {
 			fmt.Println("Scan error:", scanError)
+			return
+		}
+	}
+}
+
+func (this *Client) ShowOnlineClients() {
+	_, connectionWriteError := this.Connection.Write([]byte("who\n"))
+	if connectionWriteError != nil {
+		fmt.Println("Connection.Write error:", connectionWriteError)
+		return
+	}
+}
+
+func (this *Client) PrivateChat() {
+	this.ShowOnlineClients()
+	fmt.Println("Please input receiver (Input \"exit\" to exit):")
+	var receiverName string
+	var message string
+	_, ScanError := fmt.Scanln(&receiverName)
+	if ScanError != nil {
+		fmt.Println("Scan error:", ScanError)
+		return
+	}
+	for receiverName != "exit" {
+		fmt.Println("Please input message (Input \"exit\" to exit):")
+		_, ScanError := fmt.Scanln(&message)
+		if ScanError != nil {
+			fmt.Println("Scan error:", ScanError)
+			return
+		}
+
+		for message != "exit" {
+			if len(message) != 0 {
+				_, connectionWriteError := this.Connection.Write([]byte("to|" + receiverName + "|" + message + "\n"))
+				if connectionWriteError != nil {
+					fmt.Println("Connection.Write error:", connectionWriteError)
+					break
+				}
+			}
+
+			message = ""
+			fmt.Println("Please input message (Input \"exit\" to exit):")
+			_, ScanError := fmt.Scanln(&message)
+			if ScanError != nil {
+				fmt.Println("Scan error:", ScanError)
+				return
+			}
+		}
+
+		this.ShowOnlineClients()
+		fmt.Println("Please input message (Input \"exit\" to exit):")
+		_, ScanError = fmt.Scanln(&message)
+		if ScanError != nil {
+			fmt.Println("Scan error:", ScanError)
 			return
 		}
 	}
